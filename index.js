@@ -1,5 +1,9 @@
 const fs = require("fs");
+const url = require("url");
 const http = require("http");
+const slugify = require("slugify");
+const replaceTemplate = require("./modules/replaceTemplate.js");
+
 const data = fs.readFileSync(`${__dirname}/dev-data/data.json`, "utf-8");
 const overview = fs.readFileSync(
   `${__dirname}/templates/overview.html`,
@@ -9,20 +13,14 @@ const card = fs.readFileSync(
   `${__dirname}/templates/templete-card.html`,
   "utf-8"
 );
+const product = fs.readFileSync(`${__dirname}/templates/product.html`, "utf-8");
 
-const productData = JSON.parse(data);
+const productData = JSON.parse(data).map((el) => {
+  el.url = slugify(el.productName, { lower: true });
+  return el;
+});
 ////////////////////////////////////////
-function replaceTemplate(card, obj) {
-  let output = card.replace(/{%PRODUCTNAME%}/g, obj.productName);
-
-  output = output.replace(/{%IMAGE%}/g, obj.image);
-  output = output.replace(/{%QUANTITY%}/g, obj.quantity);
-  output = output.replace(/{%PRICE%}/g, obj.price);
-  output = output.replace(/{%NUTRIENTS%}/g, obj.nutrients);
-  output = output.replace(/{%ID%}/g, obj.id);
-  if (!obj.organic) output = output.replace(/{%NOT_ORGANIC%}/g, "not-organic");
-  return output;
-}
+// console.log(productData);
 // const text = JSON.parse(fs.readFileSync("./txt/input.txt", "utf-8"));
 
 // fs.readFile("./txt/start.txt", "utf-8", (err, data1) => {
@@ -44,30 +42,38 @@ function replaceTemplate(card, obj) {
 // server
 
 const server = http.createServer((req, res) => {
-  const pathName = req.url;
-  console.log(pathName);
+  const { query, pathname } = url.parse(req.url, true);
+  console.log(query, pathname);
   // Overview page
-  if (pathName === "/overview" || pathName === "/") {
+  if (pathname === "/overview" || pathname === "/") {
     res.writeHead(200, {
       "Content-type": "text/html",
     });
-
     const cardsHTML = productData
       .map((obj) => {
         return replaceTemplate(card, obj);
       })
       .join("");
-    console.log(cardsHTML);
     const output = overview.replace("{%PRODUCT_CARD%}", cardsHTML);
     return res.end(output);
   }
   // API
-  else if (pathName === "/api") {
+  else if (pathname === "/api") {
     res.writeHead(200, {
       "Content-type": "application/json",
     });
 
     res.end(data);
+  } else if (pathname.includes("product")) {
+    res.writeHead(200, {
+      "Content-type": "text/html",
+    });
+    const query = pathname.slice(9, pathname.length);
+    console.log(query, productData[0].url);
+    const data = productData.find((el) => el.url == query);
+
+    const output = replaceTemplate(product, data);
+    res.end(output);
   }
   // no page
   else {
